@@ -15,21 +15,47 @@
 -----------------------------------------------------------------------------
 module Data.Generics.Internal.Lens where
 
+import Data.Functor.Identity
 import Control.Applicative  ( Const (..) )
+import Data.Profunctor      ( Choice(..), dimap, Profunctor(..) )
 import GHC.Generics         ( (:*:) (..), Generic (..), M1 (..), Rep, (:+:) (..) )
 
--- | Identity functor
-newtype Identity a
-  = Identity { runIdentity :: a }
 
--- | Functor instance
-instance Functor Identity where
-  fmap f (Identity a)
-    = Identity (f a)
+
+data Tagged a b = Tagged { unTagged :: b }
+
+instance Profunctor Tagged where
+    dimap _ r (Tagged x) = Tagged $ r x
+
+instance Choice Tagged where
+    left' (Tagged x) = Tagged $ Left x
+    right' (Tagged x) = Tagged $ Right x
 
 -- | Type alias for lens
 type Lens' s a
   = forall f. Functor f => (a -> f a) -> s -> f s
+
+type Prism' s a
+  = forall p f. (Choice p, Applicative f) => p a (f a) -> p s (f s)
+
+-- | Build a 'Control.Lens.Prism.Prism'.
+--
+-- @'Either' t a@ is used instead of @'Maybe' a@ to permit the types of @s@ and @t@ to differ.
+--
+prism :: (a -> s) -> (s -> Either s a) -> Prism' s a
+prism bt seta = dimap seta (either pure (fmap bt)) . right'
+{-# INLINE prism #-}
+
+-- | This is usually used to build a 'Prism'', when you have to use an operation like
+-- 'Data.Typeable.cast' which already returns a 'Maybe'.
+prism' :: (a -> s) -> (s -> Maybe a) -> Prism' s a
+prism' bs sma = prism bs (\s -> maybe (Left s) Right (sma s))
+--{-# INLINE prism' #-}
+
+type AReview t b = Tagged b (Identity b) -> Tagged t (Identity t)
+
+review :: AReview t b -> b -> t
+review r = runIdentity . unTagged . r . Tagged . Identity
 
 -- | Getting
 (^.) :: s -> ((a -> Const a a) -> s -> Const a s) -> a
@@ -62,3 +88,10 @@ repIso a = fmap to . a . from
 -- | 'M1' is just a wrapper around `f p`
 lensM :: Lens' (M1 i c f p) (f p)
 lensM f (M1 x) = fmap M1 (f x)
+
+-- | 'M1' is just a wrapper around `f p`
+prismM :: Prism' (M1 i c f p) (f p)
+prismM x = dimap (\(M1 a) -> a) (fmap M1) x
+
+repIso' :: Generic a => Prism' a (Rep a x)
+repIso' = prism' to (Just . from)

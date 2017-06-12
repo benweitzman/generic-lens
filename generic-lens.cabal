@@ -36,6 +36,7 @@ library
                    , Data.Generics.Record.Subtype
                    , Data.Generics.Record.HasField
                    , Data.Generics.Product.HasFieldAt
+                   , Data.Generics.Sum.HasConstructor
                    , Data.Generics.Internal.Lens
 
   other-modules:     Data.Generics.Record.Internal.Contains
@@ -54,6 +55,8 @@ library
 
   -- Other library packages from which modules are imported.
   build-depends:     base >= 4.9 && <= 5.0
+                   , profunctors
+                   , lens
 
   -- Directories containing source files.
   hs-source-dirs:    src
